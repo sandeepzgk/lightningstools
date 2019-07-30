@@ -92,6 +92,7 @@
     <Compile Include="Headers\StringData.cs" />
     <Compile Include="Headers\StringIdentifier.cs" />
     <Compile Include="Headers\SwitchStates.cs" />
+    <Compile Include="Headers\VectorDisplayDrawingData.cs" />
     <Compile Include="Reader.cs" />
     <Compile Include="NativeMethods.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

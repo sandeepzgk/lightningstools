@@ -15,7 +15,7 @@ namespace F4SharedMem
         private const string RadioClientControlSharedMemoryAreaFileName = "FalconRccSharedMemoryArea";
         private const string RadioClientStatusSharedMemoryAreaFileName = "FalconRcsSharedMemoryArea";
         private const string StringSharedMemoryAreaFileName = "FalconSharedMemoryAreaString";
-
+        private const string VectorDisplayDrawingSharedMemoryAreaFileName = "FalconSharedMemoryAreaVectorDisplayDrawing";
         private bool _disposed;
 
         private IntPtr _hOsbSharedMemoryAreaFileMappingObject = IntPtr.Zero;
@@ -25,6 +25,7 @@ namespace F4SharedMem
         private IntPtr _hRadioClientControlSharedMemoryAreaFileMappingObject = IntPtr.Zero;
         private IntPtr _hRadioClientStatusSharedMemoryAreaFileMappingObject = IntPtr.Zero;
         private IntPtr _hStringSharedMemoryAreaFileMappingObject = IntPtr.Zero;
+        private IntPtr _hVectorDisplayDrawingSharedMemoryAreaFileMappingObject = IntPtr.Zero;
         private IntPtr _lpOsbSharedMemoryAreaBaseAddress = IntPtr.Zero;
         private IntPtr _lpPrimarySharedMemoryAreaBaseAddress = IntPtr.Zero;
         private IntPtr _lpSecondarySharedMemoryAreaBaseAddress = IntPtr.Zero;
@@ -32,6 +33,7 @@ namespace F4SharedMem
         private IntPtr _lpRadioClientControlSharedMemoryAreaBaseAddress = IntPtr.Zero;
         private IntPtr _lpRadioClientStatusSharedMemoryAreaBaseAddress = IntPtr.Zero;
         private IntPtr _lpStringSharedMemoryAreaBaseAddress = IntPtr.Zero;
+        private IntPtr _lpVectorDisplayDrawingSharedMemoryAreaBaseAddress = IntPtr.Zero;
 
 
         public bool IsFalconRunning
@@ -197,6 +199,26 @@ namespace F4SharedMem
             Marshal.Copy(_lpStringSharedMemoryAreaBaseAddress, toReturn, 0, (int)dataSize);
             return toReturn.Length == 0 ? null : toReturn;
         }
+        public byte[] GetRawVectorDisplayDrawingData()
+        {
+            if (_hPrimarySharedMemoryAreaFileMappingObject.Equals(IntPtr.Zero))
+            {
+                ConnectToFalcon();
+            }
+            if (_hPrimarySharedMemoryAreaFileMappingObject.Equals(IntPtr.Zero))
+            {
+                return null;
+            }
+            if (_hVectorDisplayDrawingSharedMemoryAreaFileMappingObject.Equals(IntPtr.Zero) || _lpVectorDisplayDrawingSharedMemoryAreaBaseAddress.Equals(IntPtr.Zero))
+            {
+                return null;
+            }
+            var offset = sizeof(int) + sizeof(uint);
+            var dataSize = (uint)Marshal.ReadInt32(_lpVectorDisplayDrawingSharedMemoryAreaBaseAddress, offset);
+            var toReturn = new byte[dataSize];
+            Marshal.Copy(_lpStringSharedMemoryAreaBaseAddress, toReturn, 0, (int)dataSize);
+            return toReturn.Length == 0 ? null : toReturn;
+        }
         private static long GetMaxMemFilePageSize(IntPtr pMemAreaBaseAddr)
         {
             var mbi = new NativeMethods.MEMORY_BASIC_INFORMATION();
@@ -319,6 +341,11 @@ namespace F4SharedMem
                 var rawStringData = GetRawStringData();
                 toReturn.StringData = StringData.GetStringData(rawStringData);
             }
+            if (!_hVectorDisplayDrawingSharedMemoryAreaFileMappingObject.Equals(IntPtr.Zero))
+            {
+                var rawVectorDisplayDrawingData = GetRawVectorDisplayDrawingData();
+                toReturn.VectorDisplayDrawingData = VectorDisplayDrawingData.GetVectorDisplayDrawingData(rawVectorDisplayDrawingData);
+            }
 
             return toReturn;
         }
@@ -362,6 +389,11 @@ namespace F4SharedMem
             _hStringSharedMemoryAreaFileMappingObject = NativeMethods.OpenFileMapping(NativeMethods.SECTION_MAP_READ, false,
                 StringSharedMemoryAreaFileName);
             _lpStringSharedMemoryAreaBaseAddress = NativeMethods.MapViewOfFile(_hStringSharedMemoryAreaFileMappingObject,
+                NativeMethods.SECTION_MAP_READ, 0, 0, IntPtr.Zero);
+
+            _hVectorDisplayDrawingSharedMemoryAreaFileMappingObject = NativeMethods.OpenFileMapping(NativeMethods.SECTION_MAP_READ, false,
+                VectorDisplayDrawingSharedMemoryAreaFileName);
+            _lpVectorDisplayDrawingSharedMemoryAreaBaseAddress = NativeMethods.MapViewOfFile(_hVectorDisplayDrawingSharedMemoryAreaFileMappingObject,
                 NativeMethods.SECTION_MAP_READ, 0, 0, IntPtr.Zero);
 
         }
@@ -410,6 +442,11 @@ namespace F4SharedMem
                 NativeMethods.CloseHandle(_hStringSharedMemoryAreaFileMappingObject);
             }
 
+            if (!_hVectorDisplayDrawingSharedMemoryAreaFileMappingObject.Equals(IntPtr.Zero))
+            {
+                NativeMethods.UnmapViewOfFile(_lpVectorDisplayDrawingSharedMemoryAreaBaseAddress);
+                NativeMethods.CloseHandle(_hVectorDisplayDrawingSharedMemoryAreaFileMappingObject);
+            }
         }
 
         internal void Dispose(bool disposing)

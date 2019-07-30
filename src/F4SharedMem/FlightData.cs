@@ -370,5 +370,7 @@ namespace F4SharedMem
 
         public StringData StringData { get; set; }
 
+        public VectorDisplayDrawingData VectorDisplayDrawingData { get; set; }
+
     }
 }

@@ -22,15 +22,11 @@ namespace BMSVectorsharedMemTestTool
         private ImageAttributes _imageAttrs;
 
         private string _fontTexture;
-        private HashSet<BmsFont> _bmsFonts=new HashSet<BmsFont>();
+        private HashSet<BmsFont> _bmsFonts = new HashSet<BmsFont>();
         private Image _HUDImage;
         private Image _RWRImage;
         private Image _HMSImage;
         private string _fontDir;
-
-        private string _HUDCommands;
-        private string _RWRCommands;
-        private string _HMSCommands;
 
         private F4SharedMem.Reader _smReader = new F4SharedMem.Reader();
 
@@ -48,77 +44,6 @@ namespace BMSVectorsharedMemTestTool
             timer1.Start();
         }
 
-        private void DrawCommands(Graphics g, string commands)
-        {
-            using (var sr = new StringReader(commands))
-            {
-                var cmdBuilder = new StringBuilder();
-                int thisChar = 0;
-                bool insideQuotes = false;
-                var command = "";
-                while ((thisChar = sr.Read()) > 0)
-                {
-                    cmdBuilder.Append((char)thisChar);
-                    if ((char)thisChar == '"')
-                    {
-                        insideQuotes = !insideQuotes;
-                    }
-                    else if ((char)thisChar == ';' && !insideQuotes)
-                    {
-                        command = cmdBuilder.ToString();
-                        cmdBuilder.Clear();
-                        if (!command.TrimEnd().EndsWith(";")) continue;
-                        try
-                        {
-                            if (command.StartsWith("F:"))
-                            {
-                                var args = command.Replace("F:", "").TrimEnd(';').Split(',');
-                                try { SetFont(RemoveSurroundingQuotes(args[0])); } catch { };
-                            }
-                            else if (command.StartsWith("P:"))
-                            {
-                                var args = command.Replace("P:", "").TrimEnd(';').Split(',');
-                                try { DrawPoint(float.Parse(args[0]), float.Parse(args[1]), g); } catch { };
-                            }
-                            else if (command.StartsWith("L:"))
-                            {
-                                var args = command.Replace("L:", "").TrimEnd(';').Split(',');
-                                try { DrawLine(float.Parse(args[0]), float.Parse(args[1]), float.Parse(args[2]), float.Parse(args[3]), g); } catch { };
-                            }
-                            else if (command.StartsWith("T:"))
-                            {
-                                var args = command.Replace("T:", "").TrimEnd(';').Split(',');
-                                try { DrawTri(float.Parse(args[0]), float.Parse(args[1]), float.Parse(args[2]), float.Parse(args[3]), float.Parse(args[4]), float.Parse(args[5]), g); } catch { };
-                            }
-                            else if (command.StartsWith("S:"))
-                            {
-                                var args = EscapeQuotedComma(command).Replace("S:", "").TrimEnd(';').Split(',');
-                                try { DrawString(float.Parse(args[0]), float.Parse(args[1]), RemoveSurroundingQuotes(args[2]), byte.Parse(args[3]), g); } catch { };
-                            }
-                            else if (command.StartsWith("SR:"))
-                            {
-                                var args = EscapeQuotedComma(command).Replace("SR:", "").TrimEnd(';').Split(',');
-                                try { DrawStringRotated(float.Parse(args[0]), float.Parse(args[1]), RemoveSurroundingQuotes(args[2]), float.Parse(args[3]), g); } catch { };
-                            }
-                            else if (command.StartsWith("FG:"))
-                            {
-                                var args = command.Replace("FG:", "").TrimEnd(';').Split(',');
-                                try { SetForegroundColor(uint.Parse(args[0])); } catch { };
-                            }
-                            else if (command.StartsWith("BG:"))
-                            {
-                                var args = command.Replace("BG:", "").TrimEnd(';').Split(',');
-                                try { SetBackgroundColor(uint.Parse(args[0])); } catch { };
-                            }
-                        }
-                        catch { }
-                    }
-
-
-
-                }
-            }
-        }
         private string RemoveSurroundingQuotes(string text)
         {
             var toReturn = text;
@@ -220,7 +145,7 @@ namespace BMSVectorsharedMemTestTool
             if (xLeft < -10000 || yTop < -10000) return; //prevent overflow errors when exiting BMS flying
             var curX = xLeft;
             var curY = yTop;
-            var font = _bmsFonts.Where(x=>string.Equals(Path.GetFileName(x.TextureFile), _fontTexture, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
+            var font = _bmsFonts.Where(x => string.Equals(Path.GetFileName(x.TextureFile), _fontTexture, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
             if (font == null) return;
             var originalForegroundColor = _foreColor;
             var originalBackgroundColor = _backColor;
@@ -267,74 +192,148 @@ namespace BMSVectorsharedMemTestTool
             var curData = _smReader.GetCurrentData();
             var stringData = curData != null ? curData.StringData : null;
             var stringDataData = stringData != null ? stringData.data : null;
-            _HUDCommands= stringDataData !=null && stringDataData.Any(sd => sd.strId == (uint)StringIdentifier.DrawingCommandsForHUD) 
-                                ? stringDataData.Where(sd => sd.strId == (uint)StringIdentifier.DrawingCommandsForHUD).First().value
-                                : "";
 
-           _RWRCommands = stringDataData != null && stringDataData.Any(sd => sd.strId == (uint)StringIdentifier.DrawingCommandsForRWR)
-                                ? stringDataData.Where(sd => sd.strId == (uint)StringIdentifier.DrawingCommandsForRWR).First().value
-                                : "";
-
-            _HMSCommands= stringDataData != null && stringDataData.Any(sd => sd.strId == (uint)StringIdentifier.DrawingCommandsForHMS)
-                                ? stringDataData.Where(sd => sd.strId == (uint)StringIdentifier.DrawingCommandsForHMS).First().value
-                                : "";
+            var vectorDisplayDrawingData = curData != null ? curData.VectorDisplayDrawingData : null;
+            var drawingCommands = vectorDisplayDrawingData != null ? vectorDisplayDrawingData.data : null;
+            if (drawingCommands == null) return;
             var cockpitArtDir = stringDataData != null && stringDataData.Any(sd => sd.strId == (uint)StringIdentifier.ThrCockpitdir)
                                 ? stringDataData.Where(sd => sd.strId == (uint)StringIdentifier.ThrCockpitdir).First().value
                                 : "";
             _fontDir = Path.Combine(cockpitArtDir, "3DFont");
 
-            Process(_HUDCommands, "HUD", txtHUD, lblHUDDataSize, pbHUD, ref _HUDImage);
-            Draw(_HUDImage, _HUDCommands, pbHUD);
-            Process(_RWRCommands, "RWR", txtRWR, lblRWRDataSize, pbRWR, ref _RWRImage);
-            Draw(_RWRImage, _RWRCommands, pbRWR);
-            Process(_HMSCommands, "HMS", txtHMS, lblHMSDataSize, pbHMS, ref _HMSImage);
-            Draw(_HMSImage, _HMSCommands, pbHMS);
+            Draw(drawingCommands);
         }
-        private void Process(string commands, string displayName, TextBox textBox, Label dataSizeLabel, PictureBox pictureBox, ref Image displayImage)
+        private void Draw(IEnumerable<VectorDisplayDrawingData.VectorDisplayDrawingCommand> commands)
         {
-            if (textBox != null)
+
+            Image renderTarget = null;
+            PictureBox pictureBox = null;
+            Graphics g = null;
+
+            foreach (var command in commands)
             {
-                var toDisplay = commands.Replace(";", ";\r\n");
-                if (!string.Equals(textBox.Text, toDisplay)) textBox.Text = commands != null ? toDisplay : "";
-            }
-            var dataSizeInKB = (commands ?? "").Length / 1024.0;
-            if (dataSizeLabel !=null) dataSizeLabel.Text = $"Data Size: {dataSizeInKB.ToString("0.00")} KB";
-            if (commands !=null)
-            {
-                var resStart = commands.IndexOf("R:") + 2;
-                var resEnd = resStart > 1 ? commands.IndexOf(";", resStart) : resStart;
-                if (resStart > 1 && resEnd > resStart)
+                try
                 {
-                    var resX = int.Parse(commands.Substring(resStart, resEnd - resStart).Split(',')[0]);
-                    var resY = int.Parse(commands.Substring(resStart, resEnd - resStart).Split(',')[1]);
-                    if (displayImage == null || displayImage.Width != resX || displayImage.Height != resY)
+                    switch ((VectorDisplayDrawingData.VectorDisplayDrawingCommandType)command.commandType)
                     {
-                        displayImage = new Bitmap(resX, resY);
-                        if (pictureBox != null)
-                        {
-                            pictureBox.Image = displayImage;
-                            pictureBox.Refresh();
-                        }
+                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.SetDisplayType:
+                            {
+                                var displayType = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetDisplayType).displayType;
+                                switch ((VectorDisplayDrawingData.VectorDisplayType) displayType)
+                                {
+                                    case VectorDisplayDrawingData.VectorDisplayType.HUD:
+                                        renderTarget = _HUDImage;
+                                        pictureBox = pbHUD;
+                                        g = Graphics.FromImage(renderTarget);
+                                        break;
+                                    case VectorDisplayDrawingData.VectorDisplayType.RWR:
+                                        renderTarget = _RWRImage;
+                                        pictureBox = pbRWR;
+                                        break;
+                                    case VectorDisplayDrawingData.VectorDisplayType.HMS:
+                                        renderTarget = _HMSImage;
+                                        pictureBox = pbHMS;
+                                        break;
+                                }
+                                if (renderTarget != null)
+                                {
+                                    g = Graphics.FromImage(renderTarget);
+                                    g.Clear(Color.Black);
+                                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                                    g.TextRenderingHint = TextRenderingHint.AntiAlias;
+                                    g.CompositingQuality = CompositingQuality.HighQuality;
+                                }
+                            }
+                            break;
+                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.SetResolution:
+                            {
+                                var width = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetResolution).width;
+                                var height = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetResolution).height;
+
+                                if (renderTarget == null || renderTarget.Width != width || renderTarget.Height != height)
+                                {
+                                    renderTarget = new Bitmap((int)width, (int)height);
+                                    if (pictureBox != null)
+                                    {
+                                        pictureBox.Image = renderTarget;
+                                        pictureBox.Refresh();
+                                    }
+                                }
+                            }
+                            break;
+                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.SetForegroundColor:
+                            {
+                                var packedABGR = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetForegroundColor).packedABGR;
+                                SetForegroundColor(packedABGR);
+                            }
+                            break;
+                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.SetBackgroundColor:
+                            {
+                                var packedABGR = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetBackgroundColor).packedABGR;
+                                SetBackgroundColor(packedABGR);
+                            }
+                            break;
+                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.SetFont:
+                            {
+                                _fontTexture = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetFont).fontFile;
+                            }
+                            break;
+                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.DrawPoint:
+                            {
+                                var x = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawPoint).x;
+                                var y = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawPoint).y;
+                                DrawPoint(x, y, g);
+                            }
+                            break;
+                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.DrawLine:
+                            {
+                                var x1 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawLine).x1;
+                                var y1 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawLine).y1;
+                                var x2 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawLine).x2;
+                                var y2 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawLine).y2;
+                                DrawLine(x1, y1, x2, y2, g);
+                            }
+                            break;
+                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.DrawTri:
+                            {
+                                var x1 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawTri).x1;
+                                var y1 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawTri).y1;
+                                var x2 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawTri).x2;
+                                var y2 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawTri).y2;
+                                var x3 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawTri).x3;
+                                var y3 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawTri).y3;
+                                DrawTri(x1, y1, x2, y2, x3, y3, g);
+                            }
+                            break;
+                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.DrawString:
+                            {
+                                var xLeft = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawString).xLeft;
+                                var yTop = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawString).yTop;
+                                var invert = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawString).invert;
+                                var textString = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawString).textString;
+                                DrawString(xLeft, yTop, textString, invert, g);
+                            }
+                            break;
+                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.DrawStringRotated:
+                            {
+                                var xLeft = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawStringRotated).xLeft;
+                                var yTop = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawStringRotated).yTop;
+                                var angle = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawStringRotated).angle;
+                                var textString = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawStringRotated).textString;
+                                DrawStringRotated(xLeft, yTop, textString, angle, g);
+                            }
+                            break;
                     }
+
                 }
-            }
-        }
-        private void Draw(Image target, string commands, PictureBox pictureBox)
-        {
-            if (target == null || commands ==null || pictureBox == null) return;
-            using (var g = Graphics.FromImage(target))
-            {
-
-                g.Clear(Color.Black);
-                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                g.TextRenderingHint = TextRenderingHint.AntiAlias;
-                g.CompositingQuality = CompositingQuality.HighQuality;
-                DrawCommands(g, commands);
-                pictureBox.Update();
-                pictureBox.Refresh();
+                catch { }
             }
 
+
+            pictureBox.Update();
+            pictureBox.Refresh();
         }
+
         private BmsFont LoadBmsFont(string fontFile)
         {
             var alreadyLoadedFont = _bmsFonts.Where(x => String.Equals(Path.GetFileName(x.TextureFile), fontFile, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();

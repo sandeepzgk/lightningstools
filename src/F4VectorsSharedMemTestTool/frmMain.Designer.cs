@@ -57,7 +57,7 @@
             // timer1
             // 
             this.timer1.Enabled = true;
-            this.timer1.Interval = 1;
+            this.timer1.Interval = 16;
             this.timer1.Tick += new System.EventHandler(this.Timer1_Tick);
             // 
             // lblHUDDataSize
@@ -65,8 +65,9 @@
             this.lblHUDDataSize.AutoSize = true;
             this.lblHUDDataSize.Location = new System.Drawing.Point(4, 403);
             this.lblHUDDataSize.Name = "lblHUDDataSize";
-            this.lblHUDDataSize.Size = new System.Drawing.Size(0, 13);
+            this.lblHUDDataSize.Size = new System.Drawing.Size(56, 13);
             this.lblHUDDataSize.TabIndex = 2;
+            this.lblHUDDataSize.Text = "Data Size:";
             // 
             // pbRWR
             // 
@@ -93,16 +94,18 @@
             this.lblRWRDataSize.AutoSize = true;
             this.lblRWRDataSize.Location = new System.Drawing.Point(409, 403);
             this.lblRWRDataSize.Name = "lblRWRDataSize";
-            this.lblRWRDataSize.Size = new System.Drawing.Size(0, 13);
+            this.lblRWRDataSize.Size = new System.Drawing.Size(56, 13);
             this.lblRWRDataSize.TabIndex = 7;
+            this.lblRWRDataSize.Text = "Data Size:";
             // 
             // lblHMSDataSize
             // 
             this.lblHMSDataSize.AutoSize = true;
             this.lblHMSDataSize.Location = new System.Drawing.Point(815, 403);
             this.lblHMSDataSize.Name = "lblHMSDataSize";
-            this.lblHMSDataSize.Size = new System.Drawing.Size(0, 13);
+            this.lblHMSDataSize.Size = new System.Drawing.Size(56, 13);
             this.lblHMSDataSize.TabIndex = 8;
+            this.lblHMSDataSize.Text = "Data Size:";
             // 
             // lblRWR
             // 

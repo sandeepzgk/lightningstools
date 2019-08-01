@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using System.Text;
 
 namespace F4SharedMem.Headers
@@ -11,7 +10,8 @@ namespace F4SharedMem.Headers
         [Serializable]
         public enum VectorDisplayDrawingCommandType : byte
         {
-            SetDisplayType = 0, //Set display type (see VectorDisplayType)
+            Unknown=0,
+            SetDisplayType, //Set display type (see VectorDisplayType)
             SetResolution, //Set canvas resolution
             SetForegroundColor, //Set foreground (text and line) color
             SetBackgroundColor, //Set background (text and line) color
@@ -26,7 +26,8 @@ namespace F4SharedMem.Headers
         [Serializable]
         public enum VectorDisplayType : byte
         {
-            HUD = 0,
+            Unknown = 0,
+            HUD,
             RWR,
             HMS,
             Drawing2DDisplayType_DIM // (number of identifiers; add new IDs only *above* this one)
@@ -36,6 +37,7 @@ namespace F4SharedMem.Headers
         public class VectorDisplayDrawingCommand
         {
             public byte commandType; 
+            public uint commandDataSize;
         };
         [Serializable]
         public class VectorDisplayDrawingCommand_SetDisplayType : VectorDisplayDrawingCommand
@@ -113,12 +115,10 @@ namespace F4SharedMem.Headers
         };
 
 
-        public uint VersionNum;          // Version of the Vectors shared memory area 
-        public uint NoOfCommands;          // How many commands do we have?
+        public int VersionNum;          // Version of the Vectors shared memory area 
+        public uint NoOfCommands;         //Number of commands
         public uint dataSize;             // The overall size of the "data" blob that follows
-        public IEnumerable<VectorDisplayDrawingCommand> data; // Data storage blob for all the commands
-                     // If you parse the data yourself, it should be handled as char[dataSize] by external apps, vector is only used in BMS internally for storage purposes
-                     // Note that this can NOT be treated as VectorDisplayDrawingCommand[NoOfCommands] by external apps, due to the flexible size of VectorDisplayDrawingCommand!
+        public IEnumerable<VectorDisplayDrawingCommand> data; // 2D drawing commands
 
         internal static VectorDisplayDrawingData GetVectorDisplayDrawingData(byte[] inputbuffer)
         {
@@ -127,8 +127,8 @@ namespace F4SharedMem.Headers
             if (inputbuffer !=null)
             {
                 int offset = 0;
-                result.VersionNum = BitConverter.ToUInt32(inputbuffer, offset);
-                offset += sizeof(uint);
+                result.VersionNum = BitConverter.ToInt32(inputbuffer, offset);
+                offset += sizeof(int);
                 result.NoOfCommands = BitConverter.ToUInt32(inputbuffer, offset);
                 offset += sizeof(uint);
                 result.dataSize = BitConverter.ToUInt32(inputbuffer, offset);
@@ -136,17 +136,22 @@ namespace F4SharedMem.Headers
                 result.data = new List<VectorDisplayDrawingCommand>();
 
 
-                for (uint i = 0; i < result.NoOfCommands; i++)
+                for (var i = 0u;i<result.NoOfCommands;i++)
                 {
-                    byte commandType =inputbuffer[offset];
+                    var commandType =inputbuffer[offset];
                     offset++;
 
+                    var commandDataSize = BitConverter.ToUInt32(inputbuffer, offset);
+                    offset+=sizeof(uint);
+
+                    var startingOffsetThisCommandData = offset;
                     switch ((VectorDisplayDrawingCommandType)commandType)
                     {
                         case VectorDisplayDrawingCommandType.SetDisplayType:
                             {
                                 var cmd = new VectorDisplayDrawingCommand_SetDisplayType();
                                 cmd.commandType = commandType;
+                                cmd.commandDataSize = commandDataSize;
                                 cmd.displayType = inputbuffer[offset];
                                 offset++;
                                 ((List<VectorDisplayDrawingCommand>)result.data).Add(cmd);
@@ -156,6 +161,7 @@ namespace F4SharedMem.Headers
                             {
                                 var cmd = new VectorDisplayDrawingCommand_SetResolution();
                                 cmd.commandType = commandType;
+                                cmd.commandDataSize = commandDataSize;
                                 cmd.width = BitConverter.ToUInt32(inputbuffer, offset);
                                 offset += sizeof(uint);
                                 cmd.height = BitConverter.ToUInt32(inputbuffer, offset);
@@ -167,8 +173,11 @@ namespace F4SharedMem.Headers
                             {
                                 var cmd = new VectorDisplayDrawingCommand_SetForegroundColor();
                                 cmd.commandType = commandType;
+                                cmd.commandDataSize = commandDataSize;
+
                                 cmd.packedABGR = BitConverter.ToUInt32(inputbuffer, offset);
                                 offset += sizeof(uint);
+
                                 ((List<VectorDisplayDrawingCommand>)result.data).Add(cmd);
                             }
                             break;
@@ -176,8 +185,11 @@ namespace F4SharedMem.Headers
                             {
                                 var cmd = new VectorDisplayDrawingCommand_SetBackgroundColor();
                                 cmd.commandType = commandType;
+                                cmd.commandDataSize = commandDataSize;
+
                                 cmd.packedABGR = BitConverter.ToUInt32(inputbuffer, offset);
                                 offset += sizeof(uint);
+
                                 ((List<VectorDisplayDrawingCommand>)result.data).Add(cmd);
                             }
                             break;
@@ -185,11 +197,14 @@ namespace F4SharedMem.Headers
                             {
                                 var cmd = new VectorDisplayDrawingCommand_SetFont();
                                 cmd.commandType = commandType;
+                                cmd.commandDataSize = commandDataSize;
+
                                 var fontFileLen = BitConverter.ToUInt32(inputbuffer, offset);
                                 offset += sizeof(uint);
 
                                 cmd.fontFile = Encoding.Default.GetString(inputbuffer, offset, (int)fontFileLen);
                                 offset += (int)fontFileLen;
+
                                 ((List<VectorDisplayDrawingCommand>)result.data).Add(cmd);
                             }
                             break;
@@ -197,6 +212,7 @@ namespace F4SharedMem.Headers
                             {
                                 var cmd = new VectorDisplayDrawingCommand_DrawPoint();
                                 cmd.commandType = commandType;
+                                cmd.commandDataSize = commandDataSize;
 
                                 cmd.x = BitConverter.ToSingle(inputbuffer,offset);
                                 offset += sizeof(float);
@@ -211,6 +227,7 @@ namespace F4SharedMem.Headers
                             {
                                 var cmd = new VectorDisplayDrawingCommand_DrawLine();
                                 cmd.commandType = commandType;
+                                cmd.commandDataSize = commandDataSize;
 
                                 cmd.x1 = BitConverter.ToSingle(inputbuffer, offset);
                                 offset += sizeof(float);
@@ -231,6 +248,8 @@ namespace F4SharedMem.Headers
                             {
                                 var cmd = new VectorDisplayDrawingCommand_DrawTri();
                                 cmd.commandType = commandType;
+                                cmd.commandDataSize = commandDataSize;
+
                                 cmd.x1 = BitConverter.ToSingle(inputbuffer, offset);
                                 offset += sizeof(float);
 
@@ -256,6 +275,7 @@ namespace F4SharedMem.Headers
                             {
                                 var cmd = new VectorDisplayDrawingCommand_DrawString();
                                 cmd.commandType = commandType;
+                                cmd.commandDataSize = commandDataSize;
 
                                 cmd.xLeft = BitConverter.ToSingle(inputbuffer, offset);
                                 offset += sizeof(float);
@@ -279,6 +299,7 @@ namespace F4SharedMem.Headers
                             {
                                 var cmd = new VectorDisplayDrawingCommand_DrawStringRotated();
                                 cmd.commandType = commandType;
+                                cmd.commandDataSize = commandDataSize;
 
                                 cmd.xLeft = BitConverter.ToSingle(inputbuffer, offset);
                                 offset += sizeof(float);
@@ -289,7 +310,7 @@ namespace F4SharedMem.Headers
                                 cmd.angle = BitConverter.ToSingle(inputbuffer, offset);
                                 offset += sizeof(float);
 
-                                var strLen = (uint)Marshal.ReadInt32(inputbuffer, offset);
+                                var strLen = BitConverter.ToUInt32(inputbuffer, offset);
                                 offset += sizeof(uint);
 
                                 cmd.textString = Encoding.Default.GetString(inputbuffer, offset, (int)strLen);
@@ -299,6 +320,7 @@ namespace F4SharedMem.Headers
                             }
                             break;
                     }
+                    offset = startingOffsetThisCommandData + (int)commandDataSize;
                 }
             }
 

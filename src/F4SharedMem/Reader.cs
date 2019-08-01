@@ -215,8 +215,9 @@ namespace F4SharedMem
             }
             var offset = sizeof(int) + sizeof(uint);
             var dataSize = (uint)Marshal.ReadInt32(_lpVectorDisplayDrawingSharedMemoryAreaBaseAddress, offset);
-            var toReturn = new byte[dataSize];
-            Marshal.Copy(_lpStringSharedMemoryAreaBaseAddress, toReturn, 0, (int)dataSize);
+            var overallSize = dataSize + sizeof(int) + sizeof(uint) + sizeof(uint);
+            var toReturn = new byte[overallSize];
+            Marshal.Copy(_lpVectorDisplayDrawingSharedMemoryAreaBaseAddress, toReturn, 0, (int)overallSize);
             return toReturn.Length == 0 ? null : toReturn;
         }
         private static long GetMaxMemFilePageSize(IntPtr pMemAreaBaseAddr)

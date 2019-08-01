@@ -21,13 +21,16 @@ namespace BMSVectorsharedMemTestTool
         private Pen _pen = new Pen(Color.Green, width: 1);
         private ImageAttributes _imageAttrs;
 
-        private string _fontTexture;
+        private string _fontFile;
         private HashSet<BmsFont> _bmsFonts = new HashSet<BmsFont>();
         private Image _HUDImage;
         private Image _RWRImage;
         private Image _HMSImage;
         private string _fontDir;
-
+        private byte _displayType=(byte)VectorDisplayDrawingData.VectorDisplayType.Unknown;
+        private uint _hudDataSize;
+        private uint _rwrDataSize;
+        private uint _hmsDataSize;
         private F4SharedMem.Reader _smReader = new F4SharedMem.Reader();
 
         public frmMain()
@@ -41,49 +44,11 @@ namespace BMSVectorsharedMemTestTool
             pbRWR.Refresh();
             pbHMS.Refresh();
 
+            SetForegroundColor(Color.Green);
+            SetBackgroundColor(Color.Black);
             timer1.Start();
         }
 
-        private string RemoveSurroundingQuotes(string text)
-        {
-            var toReturn = text;
-            if (toReturn.StartsWith("\""))
-            {
-                toReturn = toReturn.Substring(1, toReturn.Length - 1);
-            }
-            if (toReturn.EndsWith("\""))
-            {
-                toReturn = toReturn.Substring(0, toReturn.Length - 1);
-            }
-            return toReturn;
-        }
-        private string UnescapeComma(string line)
-        {
-            return line.Replace("&comma;", ",");
-        }
-        private string EscapeQuotedComma(string line)
-        {
-            bool quoteOpen = false;
-            var toReturn = new StringBuilder();
-            for (var i = 0; i < line.Length; i++)
-            {
-
-                if (line[i] == '"')
-                {
-                    quoteOpen = !quoteOpen;
-                    toReturn.Append(line[i]);
-                }
-                else if (line[i] == ',' && quoteOpen)
-                {
-                    toReturn.Append("&comma;");
-                }
-                else
-                {
-                    toReturn.Append(line[i]);
-                }
-            }
-            return toReturn.ToString();
-        }
         private Color ColorFromPackedABGR(uint packedABGR)
         {
             return Color.FromArgb(alpha: (int)((packedABGR & 0xFF000000) >> 24), blue: (int)((packedABGR & 0xFF0000) >> 16), green: (int)((packedABGR & 0xFF00) >> 8), red: (int)(packedABGR & 0xFF)); ;
@@ -125,27 +90,32 @@ namespace BMSVectorsharedMemTestTool
 
         private void SetFont(string fontFile)
         {
+            if (string.IsNullOrWhiteSpace(fontFile) || string.IsNullOrWhiteSpace(_fontDir)) return;
             LoadBmsFont(fontFile);
-            _fontTexture = fontFile;
+            _fontFile = fontFile;
         }
         private void DrawPoint(float x1, float y1, Graphics g)
         {
+            if (IsAnyOutOfRange(x1, y1)) return;
             g.DrawLine(_pen, x1, y1, x1, y1);
         }
         private void DrawLine(float x1, float y1, float x2, float y2, Graphics g)
         {
+            if (IsAnyOutOfRange(x1, y1,x2,y2)) return;
             g.DrawLine(_pen, x1, y1, x2, y2);
         }
         private void DrawTri(float x1, float y1, float x2, float y2, float x3, float y3, Graphics g)
         {
+            if (IsAnyOutOfRange(x1,y1,x2,y2,x3,y3)) return;
             g.FillPolygon(_brush, new[] { new PointF(x1, y1), new PointF(x2, y2), new PointF(x3, y3) });
         }
         private void DrawString(float xLeft, float yTop, string textString, byte invert, Graphics g)
         {
-            if (xLeft < -10000 || yTop < -10000) return; //prevent overflow errors when exiting BMS flying
+            if (IsAnyOutOfRange(xLeft, yTop)) return;
+            if (xLeft < 0 || yTop < 0 || float.IsNaN(xLeft) || float.IsNaN(yTop)) return; 
             var curX = xLeft;
             var curY = yTop;
-            var font = _bmsFonts.Where(x => string.Equals(Path.GetFileName(x.TextureFile), _fontTexture, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
+            var font = _bmsFonts.Where(x => string.Equals(Path.GetFileName(x.TextureFile), _fontFile, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
             if (font == null) return;
             var originalForegroundColor = _foreColor;
             var originalBackgroundColor = _backColor;
@@ -155,7 +125,7 @@ namespace BMSVectorsharedMemTestTool
                 SetForegroundColor(originalBackgroundColor);
                 SetBackgroundColor(originalForegroundColor);
             }
-            foreach (var character in UnescapeComma(textString).ToCharArray())
+            foreach (var character in textString.ToCharArray())
             {
                 var charMetric = font.FontMetrics.Where(x => x.idx == character).First();
                 curX += charMetric.lead;
@@ -178,6 +148,8 @@ namespace BMSVectorsharedMemTestTool
         }
         private void DrawStringRotated(float xLeft, float yTop, string textString, float angle, Graphics g)
         {
+            if (IsAnyOutOfRange(xLeft, yTop)) return;
+
             var origTransform = g.Transform;
             g.TranslateTransform(xLeft, yTop);
             g.RotateTransform((float)(angle * (180.0 / Math.PI)));
@@ -186,20 +158,29 @@ namespace BMSVectorsharedMemTestTool
             g.Transform = origTransform;
 
         }
-
+        private bool IsAnyOutOfRange(params float[] parms)
+        {
+            foreach (var parm in parms)
+            {
+                if (parm < 0 || float.IsNaN(parm) || float.IsInfinity(parm)) return true;
+            }
+            return false;
+        }
         private void Timer1_Tick(object sender, EventArgs e)
         {
-            var curData = _smReader.GetCurrentData();
-            var stringData = curData != null ? curData.StringData : null;
+            F4SharedMem.FlightData flightData =null;
+            try { flightData = _smReader.GetCurrentData(); } catch { }
+            StringData stringData = null;
+            try { stringData = flightData != null ? flightData.StringData : null; } catch { } 
             var stringDataData = stringData != null ? stringData.data : null;
-
-            var vectorDisplayDrawingData = curData != null ? curData.VectorDisplayDrawingData : null;
+            VectorDisplayDrawingData vectorDisplayDrawingData = null;
+            try { vectorDisplayDrawingData = flightData != null ? flightData.VectorDisplayDrawingData : null; } catch { }
             var drawingCommands = vectorDisplayDrawingData != null ? vectorDisplayDrawingData.data : null;
-            if (drawingCommands == null) return;
+            if (drawingCommands == null || drawingCommands.Count() ==0) return;
             var cockpitArtDir = stringDataData != null && stringDataData.Any(sd => sd.strId == (uint)StringIdentifier.ThrCockpitdir)
                                 ? stringDataData.Where(sd => sd.strId == (uint)StringIdentifier.ThrCockpitdir).First().value
                                 : "";
-            _fontDir = Path.Combine(cockpitArtDir, "3DFont");
+            _fontDir = string.IsNullOrWhiteSpace(cockpitArtDir) ? "" : Path.Combine(cockpitArtDir, "3DFont");
 
             Draw(drawingCommands);
         }
@@ -218,22 +199,55 @@ namespace BMSVectorsharedMemTestTool
                     {
                         case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.SetDisplayType:
                             {
-                                var displayType = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetDisplayType).displayType;
-                                switch ((VectorDisplayDrawingData.VectorDisplayType) displayType)
+                                _displayType = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetDisplayType).displayType;
+                                switch ((VectorDisplayDrawingData.VectorDisplayType)_displayType)
                                 {
                                     case VectorDisplayDrawingData.VectorDisplayType.HUD:
-                                        renderTarget = _HUDImage;
-                                        pictureBox = pbHUD;
-                                        g = Graphics.FromImage(renderTarget);
+                                        _hudDataSize = 0;
                                         break;
                                     case VectorDisplayDrawingData.VectorDisplayType.RWR:
-                                        renderTarget = _RWRImage;
-                                        pictureBox = pbRWR;
+                                        _rwrDataSize = 0;
                                         break;
                                     case VectorDisplayDrawingData.VectorDisplayType.HMS:
-                                        renderTarget = _HMSImage;
-                                        pictureBox = pbHMS;
+                                        _hmsDataSize = 0;
                                         break;
+                                }
+                            }
+                            break;
+                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.SetResolution:
+                            {
+                                var width = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetResolution).width;
+                                var height = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetResolution).height;
+
+                                switch ((VectorDisplayDrawingData.VectorDisplayType)_displayType)
+                                {
+                                    case VectorDisplayDrawingData.VectorDisplayType.HUD:
+                                        renderTarget = _HUDImage != null && _HUDImage.Width == width && _HUDImage.Height == height ? _HUDImage : new Bitmap((int)width, (int)height);
+                                        _HUDImage = renderTarget;
+                                        pictureBox = pbHUD;
+                                        pictureBox.Image = _HUDImage;
+                                        break;
+                                    case VectorDisplayDrawingData.VectorDisplayType.RWR:
+                                        renderTarget = _RWRImage != null && _RWRImage.Width == width && _RWRImage.Height == height ? _RWRImage : new Bitmap((int)width, (int)height);
+                                        _RWRImage = renderTarget;
+                                        pictureBox = pbRWR;
+                                        pictureBox.Image = _RWRImage;
+                                        break;
+                                    case VectorDisplayDrawingData.VectorDisplayType.HMS:
+                                        renderTarget = _HMSImage != null && _HMSImage.Width == width && _HMSImage.Height == height ? _HMSImage : new Bitmap((int)width, (int)height);
+                                        _HMSImage = renderTarget;
+                                        pictureBox = pbHMS;
+                                        pictureBox.Image = _HMSImage;
+                                        break;
+                                    default:
+                                        renderTarget = null;
+                                        pictureBox = null;
+                                        break;
+                                }
+                                if (pictureBox != null)
+                                {
+                                    pictureBox.Update();
+                                    pictureBox.Refresh();
                                 }
                                 if (renderTarget != null)
                                 {
@@ -243,22 +257,7 @@ namespace BMSVectorsharedMemTestTool
                                     g.TextRenderingHint = TextRenderingHint.AntiAlias;
                                     g.CompositingQuality = CompositingQuality.HighQuality;
                                 }
-                            }
-                            break;
-                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.SetResolution:
-                            {
-                                var width = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetResolution).width;
-                                var height = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetResolution).height;
 
-                                if (renderTarget == null || renderTarget.Width != width || renderTarget.Height != height)
-                                {
-                                    renderTarget = new Bitmap((int)width, (int)height);
-                                    if (pictureBox != null)
-                                    {
-                                        pictureBox.Image = renderTarget;
-                                        pictureBox.Refresh();
-                                    }
-                                }
                             }
                             break;
                         case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.SetForegroundColor:
@@ -275,7 +274,8 @@ namespace BMSVectorsharedMemTestTool
                             break;
                         case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.SetFont:
                             {
-                                _fontTexture = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetFont).fontFile;
+                                _fontFile = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetFont).fontFile;
+                                SetFont(_fontFile);
                             }
                             break;
                         case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.DrawPoint:
@@ -325,24 +325,41 @@ namespace BMSVectorsharedMemTestTool
                             break;
                     }
 
+                    switch ((VectorDisplayDrawingData.VectorDisplayType)_displayType)
+                    {
+                        case VectorDisplayDrawingData.VectorDisplayType.HUD:
+                            _hudDataSize +=command.commandDataSize;
+                            break;
+                        case VectorDisplayDrawingData.VectorDisplayType.RWR:
+                            _rwrDataSize += command.commandDataSize;
+                            break;
+                        case VectorDisplayDrawingData.VectorDisplayType.HMS:
+                            _hmsDataSize += command.commandDataSize;
+                            break;
+                    }
                 }
                 catch { }
             }
+            if (pictureBox != null)
+            {
+                pictureBox.Update();
+                pictureBox.Refresh();
+            }
+            lblHUDDataSize.Text = $"Data Size: { (_hudDataSize / 1024.0).ToString("0.0") } KB";
+            lblRWRDataSize.Text = $"Data Size: { (_rwrDataSize / 1024.0).ToString("0.0") } KB";
+            lblHMSDataSize.Text = $"Data Size: { (_hmsDataSize / 1024.0).ToString("0.0") } KB";
 
-
-            pictureBox.Update();
-            pictureBox.Refresh();
         }
 
-        private BmsFont LoadBmsFont(string fontFile)
+        private void LoadBmsFont(string fontFile)
         {
+            if (string.IsNullOrWhiteSpace(fontFile)) return;
             var alreadyLoadedFont = _bmsFonts.Where(x => String.Equals(Path.GetFileName(x.TextureFile), fontFile, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
-            if (alreadyLoadedFont != null) return alreadyLoadedFont;
+            if (alreadyLoadedFont != null) return;
             var fontFullPath = Path.Combine(_fontDir, fontFile);
             var rctPath = Path.Combine(_fontDir, Path.GetFileNameWithoutExtension(fontFile) + ".rct");
             var bmsFont = new BmsFont(fontFullPath, rctPath);
             _bmsFonts.Add(bmsFont);
-            return bmsFont;
         }
     }
 }

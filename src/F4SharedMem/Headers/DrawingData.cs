@@ -5,13 +5,12 @@ using System.Text;
 namespace F4SharedMem.Headers
 {
     [Serializable]
-    public class VectorDisplayDrawingData
+    public class DrawingData
     {
         [Serializable]
-        public enum VectorDisplayDrawingCommandType : byte
+        public enum CommandType : byte
         {
-            Unknown=0,
-            SetDisplayType, //Set display type (see VectorDisplayType)
+            SetDisplayType=0, //Set display type (see DisplayType)
             SetResolution, //Set canvas resolution
             SetForegroundColor, //Set foreground (text and line) color
             SetBackgroundColor, //Set background (text and line) color
@@ -21,48 +20,49 @@ namespace F4SharedMem.Headers
             DrawTri, //Draw filled triangle
             DrawString, //Draw string
             DrawStringRotated, //Draw string with rotated text
-            VectorDisplayDrawingCommand_DIM // (number of identifiers; add new IDs only *above* this one)
+            DrawingCommand_DIM // (number of identifiers; add new IDs only *above* this one)
         };
         [Serializable]
-        public enum VectorDisplayType : byte
+        public enum DisplayType : byte
         {
-            Unknown = 0,
-            HUD,
+            HUD=0,
             RWR,
+            LMFD,
+            RMFD,
             HMS,
             Drawing2DDisplayType_DIM // (number of identifiers; add new IDs only *above* this one)
         };
 
         [Serializable]
-        public class VectorDisplayDrawingCommand
+        public class DrawingCommand
         {
             public byte commandType; 
             public uint commandDataSize;
         };
         [Serializable]
-        public class VectorDisplayDrawingCommand_SetDisplayType : VectorDisplayDrawingCommand
+        public class DrawingCommand_SetDisplayType : DrawingCommand
         {
             public byte displayType; 
         };
         [Serializable]
-        public class VectorDisplayDrawingCommand_SetResolution : VectorDisplayDrawingCommand
+        public class DrawingCommand_SetResolution : DrawingCommand
         {
             public uint width; //canvas width, in pixels
             public uint height; //canvas height, in pixels
         };
         [Serializable]
-        public class VectorDisplayDrawingCommand_SetFont : VectorDisplayDrawingCommand
+        public class DrawingCommand_SetFont : DrawingCommand
         {
             public string fontFile;
         };
         [Serializable]
-        public class VectorDisplayDrawingCommand_DrawPoint : VectorDisplayDrawingCommand
+        public class DrawingCommand_DrawPoint : DrawingCommand
         {
             public float x; //X coordinate
             public float y; //Y coordinate
         };
         [Serializable]
-        public class VectorDisplayDrawingCommand_DrawLine : VectorDisplayDrawingCommand
+        public class DrawingCommand_DrawLine : DrawingCommand
         {
             public float x1; //starting X coordinate
             public float y1; //starting Y coordinate
@@ -70,7 +70,7 @@ namespace F4SharedMem.Headers
             public float y2; //ending Y coordinate
         };
         [Serializable]
-        public class VectorDisplayDrawingCommand_DrawTri : VectorDisplayDrawingCommand
+        public class DrawingCommand_DrawTri : DrawingCommand
         {
             public float x1; //vertex 1 X coordinate
             public float y1; //vertex 1 Y coordinate
@@ -80,7 +80,7 @@ namespace F4SharedMem.Headers
             public float y3; //vertex 3 Y coordinate
         };
         [Serializable]
-        public class VectorDisplayDrawingCommand_DrawString : VectorDisplayDrawingCommand
+        public class DrawingCommand_DrawString : DrawingCommand
         {
             public float xLeft; //X coordinate of left of text box
             public float yTop; //Y coordinate of top of text box
@@ -88,7 +88,7 @@ namespace F4SharedMem.Headers
             public string textString; //string to draw
         };
         [Serializable]
-        public class VectorDisplayDrawingCommand_DrawStringRotated : VectorDisplayDrawingCommand
+        public class DrawingCommand_DrawStringRotated : DrawingCommand
         {
             public float xLeft; //X coordinate of left of text box
             public float yTop; //Y coordinate of top of text box
@@ -96,7 +96,7 @@ namespace F4SharedMem.Headers
             public string textString; //string to draw
         };
         [Serializable]
-        public class VectorDisplayDrawingCommand_SetForegroundColor : VectorDisplayDrawingCommand
+        public class DrawingCommand_SetForegroundColor : DrawingCommand
         {
             public uint packedABGR; //foreground color in packed Alpha - Blue - Green - Red bit order(8 bits for each component)
                              //alpha: bits 24-31 (most significant 8 bits)
@@ -105,7 +105,7 @@ namespace F4SharedMem.Headers
                              //red:   bits 0-7 (least significant 8 bits)
         };
         [Serializable]
-        public class VectorDisplayDrawingCommand_SetBackgroundColor : VectorDisplayDrawingCommand
+        public class DrawingCommand_SetBackgroundColor : DrawingCommand
         {
             public uint packedABGR; //background color in packed Alpha - Blue - Green - Red bit order(8 bits for each component)
                              //alpha: bits 24-31 (most significant 8 bits)
@@ -115,14 +115,14 @@ namespace F4SharedMem.Headers
         };
 
 
-        public int VersionNum;          // Version of the Vectors shared memory area 
+        public int VersionNum;          // Version of the DrawingCommands shared memory area 
         public uint NoOfCommands;         //Number of commands
         public uint dataSize;             // The overall size of the "data" blob that follows
-        public IEnumerable<VectorDisplayDrawingCommand> data; // 2D drawing commands
+        public IEnumerable<DrawingCommand> data; // 2D drawing commands
 
-        internal static VectorDisplayDrawingData GetVectorDisplayDrawingData(byte[] inputbuffer)
+        internal static DrawingData GetDrawingData(byte[] inputbuffer)
         {
-            var result=new VectorDisplayDrawingData();
+            var result=new DrawingData();
 
             if (inputbuffer !=null)
             {
@@ -133,7 +133,7 @@ namespace F4SharedMem.Headers
                 offset += sizeof(uint);
                 result.dataSize = BitConverter.ToUInt32(inputbuffer, offset);
                 offset += sizeof(uint);
-                result.data = new List<VectorDisplayDrawingCommand>();
+                result.data = new List<DrawingCommand>();
 
 
                 for (var i = 0u;i<result.NoOfCommands;i++)
@@ -145,57 +145,57 @@ namespace F4SharedMem.Headers
                     offset+=sizeof(uint);
 
                     var startingOffsetThisCommandData = offset;
-                    switch ((VectorDisplayDrawingCommandType)commandType)
+                    switch ((CommandType)commandType)
                     {
-                        case VectorDisplayDrawingCommandType.SetDisplayType:
+                        case CommandType.SetDisplayType:
                             {
-                                var cmd = new VectorDisplayDrawingCommand_SetDisplayType();
+                                var cmd = new DrawingCommand_SetDisplayType();
                                 cmd.commandType = commandType;
                                 cmd.commandDataSize = commandDataSize;
                                 cmd.displayType = inputbuffer[offset];
                                 offset++;
-                                ((List<VectorDisplayDrawingCommand>)result.data).Add(cmd);
+                                ((List<DrawingCommand>)result.data).Add(cmd);
                             }
                             break;
-                        case VectorDisplayDrawingCommandType.SetResolution:
+                        case CommandType.SetResolution:
                             {
-                                var cmd = new VectorDisplayDrawingCommand_SetResolution();
+                                var cmd = new DrawingCommand_SetResolution();
                                 cmd.commandType = commandType;
                                 cmd.commandDataSize = commandDataSize;
                                 cmd.width = BitConverter.ToUInt32(inputbuffer, offset);
                                 offset += sizeof(uint);
                                 cmd.height = BitConverter.ToUInt32(inputbuffer, offset);
                                 offset += sizeof(uint);
-                                ((List<VectorDisplayDrawingCommand>)result.data).Add(cmd);
+                                ((List<DrawingCommand>)result.data).Add(cmd);
                             }
                             break;
-                        case VectorDisplayDrawingCommandType.SetForegroundColor:
+                        case CommandType.SetForegroundColor:
                             {
-                                var cmd = new VectorDisplayDrawingCommand_SetForegroundColor();
+                                var cmd = new DrawingCommand_SetForegroundColor();
                                 cmd.commandType = commandType;
                                 cmd.commandDataSize = commandDataSize;
 
                                 cmd.packedABGR = BitConverter.ToUInt32(inputbuffer, offset);
                                 offset += sizeof(uint);
 
-                                ((List<VectorDisplayDrawingCommand>)result.data).Add(cmd);
+                                ((List<DrawingCommand>)result.data).Add(cmd);
                             }
                             break;
-                        case VectorDisplayDrawingCommandType.SetBackgroundColor:
+                        case CommandType.SetBackgroundColor:
                             {
-                                var cmd = new VectorDisplayDrawingCommand_SetBackgroundColor();
+                                var cmd = new DrawingCommand_SetBackgroundColor();
                                 cmd.commandType = commandType;
                                 cmd.commandDataSize = commandDataSize;
 
                                 cmd.packedABGR = BitConverter.ToUInt32(inputbuffer, offset);
                                 offset += sizeof(uint);
 
-                                ((List<VectorDisplayDrawingCommand>)result.data).Add(cmd);
+                                ((List<DrawingCommand>)result.data).Add(cmd);
                             }
                             break;
-                        case VectorDisplayDrawingCommandType.SetFont:
+                        case CommandType.SetFont:
                             {
-                                var cmd = new VectorDisplayDrawingCommand_SetFont();
+                                var cmd = new DrawingCommand_SetFont();
                                 cmd.commandType = commandType;
                                 cmd.commandDataSize = commandDataSize;
 
@@ -205,12 +205,12 @@ namespace F4SharedMem.Headers
                                 cmd.fontFile = Encoding.Default.GetString(inputbuffer, offset, (int)fontFileLen);
                                 offset += (int)fontFileLen;
 
-                                ((List<VectorDisplayDrawingCommand>)result.data).Add(cmd);
+                                ((List<DrawingCommand>)result.data).Add(cmd);
                             }
                             break;
-                        case VectorDisplayDrawingCommandType.DrawPoint:
+                        case CommandType.DrawPoint:
                             {
-                                var cmd = new VectorDisplayDrawingCommand_DrawPoint();
+                                var cmd = new DrawingCommand_DrawPoint();
                                 cmd.commandType = commandType;
                                 cmd.commandDataSize = commandDataSize;
 
@@ -220,12 +220,12 @@ namespace F4SharedMem.Headers
                                 cmd.y = BitConverter.ToSingle(inputbuffer, offset);
                                 offset += sizeof(float);
 
-                                ((List<VectorDisplayDrawingCommand>)result.data).Add(cmd);
+                                ((List<DrawingCommand>)result.data).Add(cmd);
                             }
                             break;
-                        case VectorDisplayDrawingCommandType.DrawLine:
+                        case CommandType.DrawLine:
                             {
-                                var cmd = new VectorDisplayDrawingCommand_DrawLine();
+                                var cmd = new DrawingCommand_DrawLine();
                                 cmd.commandType = commandType;
                                 cmd.commandDataSize = commandDataSize;
 
@@ -241,12 +241,12 @@ namespace F4SharedMem.Headers
                                 cmd.y2 = BitConverter.ToSingle(inputbuffer, offset);
                                 offset += sizeof(float);
 
-                                ((List<VectorDisplayDrawingCommand>)result.data).Add(cmd);
+                                ((List<DrawingCommand>)result.data).Add(cmd);
                             }
                             break;
-                        case VectorDisplayDrawingCommandType.DrawTri:
+                        case CommandType.DrawTri:
                             {
-                                var cmd = new VectorDisplayDrawingCommand_DrawTri();
+                                var cmd = new DrawingCommand_DrawTri();
                                 cmd.commandType = commandType;
                                 cmd.commandDataSize = commandDataSize;
 
@@ -268,12 +268,12 @@ namespace F4SharedMem.Headers
                                 cmd.y3 = BitConverter.ToSingle(inputbuffer, offset);
                                 offset += sizeof(float);
 
-                                ((List<VectorDisplayDrawingCommand>)result.data).Add(cmd);
+                                ((List<DrawingCommand>)result.data).Add(cmd);
                             }
                             break;
-                        case VectorDisplayDrawingCommandType.DrawString:
+                        case CommandType.DrawString:
                             {
-                                var cmd = new VectorDisplayDrawingCommand_DrawString();
+                                var cmd = new DrawingCommand_DrawString();
                                 cmd.commandType = commandType;
                                 cmd.commandDataSize = commandDataSize;
 
@@ -292,12 +292,12 @@ namespace F4SharedMem.Headers
                                 cmd.textString = Encoding.Default.GetString(inputbuffer,offset, (int)strLen);
                                 offset += (int)strLen;
 
-                                ((List<VectorDisplayDrawingCommand>)result.data).Add(cmd);
+                                ((List<DrawingCommand>)result.data).Add(cmd);
                             }
                             break;
-                        case VectorDisplayDrawingCommandType.DrawStringRotated:
+                        case CommandType.DrawStringRotated:
                             {
-                                var cmd = new VectorDisplayDrawingCommand_DrawStringRotated();
+                                var cmd = new DrawingCommand_DrawStringRotated();
                                 cmd.commandType = commandType;
                                 cmd.commandDataSize = commandDataSize;
 
@@ -316,7 +316,7 @@ namespace F4SharedMem.Headers
                                 cmd.textString = Encoding.Default.GetString(inputbuffer, offset, (int)strLen);
                                 offset += (int)strLen;
 
-                                ((List<VectorDisplayDrawingCommand>)result.data).Add(cmd);
+                                ((List<DrawingCommand>)result.data).Add(cmd);
                             }
                             break;
                     }

@@ -14,6 +14,7 @@ namespace BMSVectorsharedMemTestTool
 {
     public partial class frmMain : Form
     {
+        private const float IMAGE_OVERRUN_PADDING_PIXELS= 0;
         private Color _foreColor = Color.Green;
         private Color _backColor = Color.Black;
 
@@ -26,11 +27,15 @@ namespace BMSVectorsharedMemTestTool
         private Image _HUDImage;
         private Image _RWRImage;
         private Image _HMSImage;
+        private Image _LMFDImage;
+        private Image _RMFDImage;
         private string _fontDir;
-        private byte _displayType=(byte)VectorDisplayDrawingData.VectorDisplayType.Unknown;
+        private byte _displayType;
         private uint _hudDataSize;
         private uint _rwrDataSize;
         private uint _hmsDataSize;
+        private uint _lmfdDataSize;
+        private uint _rmfdDataSize;
         private F4SharedMem.Reader _smReader = new F4SharedMem.Reader();
 
         public frmMain()
@@ -39,10 +44,14 @@ namespace BMSVectorsharedMemTestTool
             pbHUD.Image = _HUDImage;
             pbRWR.Image = _RWRImage;
             pbHMS.Image = _HMSImage;
+            pbLMFD.Image = _LMFDImage;
+            pbRMFD.Image = _RMFDImage;
 
             pbHUD.Refresh();
             pbRWR.Refresh();
             pbHMS.Refresh();
+            pbLMFD.Refresh();
+            pbRMFD.Refresh();
 
             SetForegroundColor(Color.Green);
             SetBackgroundColor(Color.Black);
@@ -112,7 +121,8 @@ namespace BMSVectorsharedMemTestTool
         private void DrawString(float xLeft, float yTop, string textString, byte invert, Graphics g)
         {
             if (IsAnyOutOfRange(xLeft, yTop)) return;
-            if (xLeft < 0 || yTop < 0 || float.IsNaN(xLeft) || float.IsNaN(yTop)) return; 
+            if (xLeft < 0 || yTop < 0 || float.IsNaN(xLeft) || float.IsNaN(yTop)) return;
+
             var curX = xLeft;
             var curY = yTop;
             var font = _bmsFonts.Where(x => string.Equals(Path.GetFileName(x.TextureFile), _fontFile, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
@@ -125,20 +135,34 @@ namespace BMSVectorsharedMemTestTool
                 SetForegroundColor(originalBackgroundColor);
                 SetBackgroundColor(originalForegroundColor);
             }
+
+            if (invert == 1) //draw inverted-color bounding rectangle 
+            {
+                var left = xLeft;
+                var top = yTop;
+                var width = 0f;
+                var height = 0f;
+                foreach (var character in textString.ToCharArray())
+                {
+                    var charMetric = font.FontMetrics.Where(x => x.idx == character).First();
+                    width += charMetric.lead + charMetric.width + charMetric.trail;
+                    height = Math.Max(height, charMetric.height);
+                }
+                g.FillRectangle(new SolidBrush(originalForegroundColor), xLeft-1, yTop-1, width+2, height);
+            }
+
+            //draw the text itself
             foreach (var character in textString.ToCharArray())
             {
                 var charMetric = font.FontMetrics.Where(x => x.idx == character).First();
                 curX += charMetric.lead;
                 var destRect = new Rectangle((int)curX, (int)curY, charMetric.width, charMetric.height);
                 var srcRect = new RectangleF(charMetric.left, charMetric.top, charMetric.width, charMetric.height);
-                if (invert == 1)
-                {
-                    g.FillRectangle(new SolidBrush(originalForegroundColor), destRect);
-                }
                 g.DrawImage(font.Texture, destRect, srcRect.X, srcRect.Y, srcRect.Width, srcRect.Height, GraphicsUnit.Pixel, _imageAttrs);
                 curX += charMetric.width;
                 curX += charMetric.trail;
             }
+
             if (invert == 1) //invert text
             {
                 //swap foreground and background colors back to originals
@@ -173,9 +197,9 @@ namespace BMSVectorsharedMemTestTool
             StringData stringData = null;
             try { stringData = flightData != null ? flightData.StringData : null; } catch { } 
             var stringDataData = stringData != null ? stringData.data : null;
-            VectorDisplayDrawingData vectorDisplayDrawingData = null;
-            try { vectorDisplayDrawingData = flightData != null ? flightData.VectorDisplayDrawingData : null; } catch { }
-            var drawingCommands = vectorDisplayDrawingData != null ? vectorDisplayDrawingData.data : null;
+            DrawingData drawingData = null;
+            try { drawingData = flightData != null ? flightData.DrawingData : null; } catch { }
+            var drawingCommands = drawingData != null ? drawingData.data : null;
             if (drawingCommands == null || drawingCommands.Count() ==0) return;
             var cockpitArtDir = stringDataData != null && stringDataData.Any(sd => sd.strId == (uint)StringIdentifier.ThrCockpitdir)
                                 ? stringDataData.Where(sd => sd.strId == (uint)StringIdentifier.ThrCockpitdir).First().value
@@ -184,9 +208,8 @@ namespace BMSVectorsharedMemTestTool
 
             Draw(drawingCommands);
         }
-        private void Draw(IEnumerable<VectorDisplayDrawingData.VectorDisplayDrawingCommand> commands)
+        private void Draw(IEnumerable<DrawingData.DrawingCommand> commands)
         {
-
             Image renderTarget = null;
             PictureBox pictureBox = null;
             Graphics g = null;
@@ -195,49 +218,71 @@ namespace BMSVectorsharedMemTestTool
             {
                 try
                 {
-                    switch ((VectorDisplayDrawingData.VectorDisplayDrawingCommandType)command.commandType)
+                    switch ((DrawingData.CommandType)command.commandType)
                     {
-                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.SetDisplayType:
+                        case DrawingData.CommandType.SetDisplayType:
                             {
-                                _displayType = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetDisplayType).displayType;
-                                switch ((VectorDisplayDrawingData.VectorDisplayType)_displayType)
+                                _displayType = (command as DrawingData.DrawingCommand_SetDisplayType).displayType;
+                                switch ((DrawingData.DisplayType)_displayType)
                                 {
-                                    case VectorDisplayDrawingData.VectorDisplayType.HUD:
+                                    case DrawingData.DisplayType.HUD:
                                         _hudDataSize = 0;
                                         break;
-                                    case VectorDisplayDrawingData.VectorDisplayType.RWR:
+                                    case DrawingData.DisplayType.RWR:
                                         _rwrDataSize = 0;
                                         break;
-                                    case VectorDisplayDrawingData.VectorDisplayType.HMS:
+                                    case DrawingData.DisplayType.HMS:
                                         _hmsDataSize = 0;
+                                        break;
+                                    case DrawingData.DisplayType.LMFD:
+                                        _lmfdDataSize = 0;
+                                        break;
+                                    case DrawingData.DisplayType.RMFD:
+                                        _rmfdDataSize = 0;
                                         break;
                                 }
                             }
                             break;
-                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.SetResolution:
+                        case DrawingData.CommandType.SetResolution:
                             {
-                                var width = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetResolution).width;
-                                var height = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetResolution).height;
+                                var width = (command as DrawingData.DrawingCommand_SetResolution).width;
+                                var height = (command as DrawingData.DrawingCommand_SetResolution).height;
 
-                                switch ((VectorDisplayDrawingData.VectorDisplayType)_displayType)
+                                switch ((DrawingData.DisplayType)_displayType)
                                 {
-                                    case VectorDisplayDrawingData.VectorDisplayType.HUD:
-                                        renderTarget = _HUDImage != null && _HUDImage.Width == width && _HUDImage.Height == height ? _HUDImage : new Bitmap((int)width, (int)height);
+                                    case DrawingData.DisplayType.HUD:
+                                        renderTarget = _HUDImage != null && _HUDImage.Width == width + IMAGE_OVERRUN_PADDING_PIXELS && _HUDImage.Height == height + IMAGE_OVERRUN_PADDING_PIXELS ? _HUDImage : new Bitmap((int)(width + IMAGE_OVERRUN_PADDING_PIXELS), (int)(height + IMAGE_OVERRUN_PADDING_PIXELS));
                                         _HUDImage = renderTarget;
                                         pictureBox = pbHUD;
                                         pictureBox.Image = _HUDImage;
                                         break;
-                                    case VectorDisplayDrawingData.VectorDisplayType.RWR:
-                                        renderTarget = _RWRImage != null && _RWRImage.Width == width && _RWRImage.Height == height ? _RWRImage : new Bitmap((int)width, (int)height);
+                                    case DrawingData.DisplayType.RWR:
+                                        renderTarget = _RWRImage != null && _RWRImage.Width == width + IMAGE_OVERRUN_PADDING_PIXELS && _RWRImage.Height == height + IMAGE_OVERRUN_PADDING_PIXELS ? _RWRImage : new Bitmap((int)(width + IMAGE_OVERRUN_PADDING_PIXELS), (int)(height + IMAGE_OVERRUN_PADDING_PIXELS));
+
                                         _RWRImage = renderTarget;
                                         pictureBox = pbRWR;
                                         pictureBox.Image = _RWRImage;
                                         break;
-                                    case VectorDisplayDrawingData.VectorDisplayType.HMS:
-                                        renderTarget = _HMSImage != null && _HMSImage.Width == width && _HMSImage.Height == height ? _HMSImage : new Bitmap((int)width, (int)height);
+                                    case DrawingData.DisplayType.HMS:
+                                        renderTarget = _HMSImage != null && _HMSImage.Width == width + IMAGE_OVERRUN_PADDING_PIXELS && _HMSImage.Height == height  + IMAGE_OVERRUN_PADDING_PIXELS ? _HMSImage : new Bitmap((int)(width + IMAGE_OVERRUN_PADDING_PIXELS), (int)(height + IMAGE_OVERRUN_PADDING_PIXELS));
+
                                         _HMSImage = renderTarget;
                                         pictureBox = pbHMS;
                                         pictureBox.Image = _HMSImage;
+                                        break;
+                                    case DrawingData.DisplayType.LMFD:
+                                        renderTarget = _LMFDImage != null && _LMFDImage.Width == width + IMAGE_OVERRUN_PADDING_PIXELS && _LMFDImage.Height == height + IMAGE_OVERRUN_PADDING_PIXELS ? _LMFDImage : new Bitmap((int)(width + IMAGE_OVERRUN_PADDING_PIXELS), (int)(height + IMAGE_OVERRUN_PADDING_PIXELS));
+
+                                        _LMFDImage = renderTarget;
+                                        pictureBox = pbLMFD;
+                                        pictureBox.Image = _LMFDImage;
+                                        break;
+                                    case DrawingData.DisplayType.RMFD:
+                                        renderTarget = _RMFDImage != null && _RMFDImage.Width == width + IMAGE_OVERRUN_PADDING_PIXELS && _RMFDImage.Height == height + IMAGE_OVERRUN_PADDING_PIXELS ? _RMFDImage : new Bitmap((int)(width + IMAGE_OVERRUN_PADDING_PIXELS), (int)(height + IMAGE_OVERRUN_PADDING_PIXELS));
+
+                                        _RMFDImage = renderTarget;
+                                        pictureBox = pbRMFD;
+                                        pictureBox.Image = _RMFDImage;
                                         break;
                                     default:
                                         renderTarget = null;
@@ -260,81 +305,87 @@ namespace BMSVectorsharedMemTestTool
 
                             }
                             break;
-                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.SetForegroundColor:
+                        case DrawingData.CommandType.SetForegroundColor:
                             {
-                                var packedABGR = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetForegroundColor).packedABGR;
+                                var packedABGR = (command as DrawingData.DrawingCommand_SetForegroundColor).packedABGR;
                                 SetForegroundColor(packedABGR);
                             }
                             break;
-                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.SetBackgroundColor:
+                        case DrawingData.CommandType.SetBackgroundColor:
                             {
-                                var packedABGR = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetBackgroundColor).packedABGR;
+                                var packedABGR = (command as DrawingData.DrawingCommand_SetBackgroundColor).packedABGR;
                                 SetBackgroundColor(packedABGR);
                             }
                             break;
-                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.SetFont:
+                        case DrawingData.CommandType.SetFont:
                             {
-                                _fontFile = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_SetFont).fontFile;
+                                _fontFile = (command as DrawingData.DrawingCommand_SetFont).fontFile;
                                 SetFont(_fontFile);
                             }
                             break;
-                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.DrawPoint:
+                        case DrawingData.CommandType.DrawPoint:
                             {
-                                var x = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawPoint).x;
-                                var y = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawPoint).y;
+                                var x = (command as DrawingData.DrawingCommand_DrawPoint).x;
+                                var y = (command as DrawingData.DrawingCommand_DrawPoint).y;
                                 DrawPoint(x, y, g);
                             }
                             break;
-                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.DrawLine:
+                        case DrawingData.CommandType.DrawLine:
                             {
-                                var x1 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawLine).x1;
-                                var y1 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawLine).y1;
-                                var x2 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawLine).x2;
-                                var y2 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawLine).y2;
+                                var x1 = (command as DrawingData.DrawingCommand_DrawLine).x1;
+                                var y1 = (command as DrawingData.DrawingCommand_DrawLine).y1;
+                                var x2 = (command as DrawingData.DrawingCommand_DrawLine).x2;
+                                var y2 = (command as DrawingData.DrawingCommand_DrawLine).y2;
                                 DrawLine(x1, y1, x2, y2, g);
                             }
                             break;
-                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.DrawTri:
+                        case DrawingData.CommandType.DrawTri:
                             {
-                                var x1 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawTri).x1;
-                                var y1 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawTri).y1;
-                                var x2 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawTri).x2;
-                                var y2 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawTri).y2;
-                                var x3 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawTri).x3;
-                                var y3 = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawTri).y3;
+                                var x1 = (command as DrawingData.DrawingCommand_DrawTri).x1;
+                                var y1 = (command as DrawingData.DrawingCommand_DrawTri).y1;
+                                var x2 = (command as DrawingData.DrawingCommand_DrawTri).x2;
+                                var y2 = (command as DrawingData.DrawingCommand_DrawTri).y2;
+                                var x3 = (command as DrawingData.DrawingCommand_DrawTri).x3;
+                                var y3 = (command as DrawingData.DrawingCommand_DrawTri).y3;
                                 DrawTri(x1, y1, x2, y2, x3, y3, g);
                             }
                             break;
-                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.DrawString:
+                        case DrawingData.CommandType.DrawString:
                             {
-                                var xLeft = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawString).xLeft;
-                                var yTop = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawString).yTop;
-                                var invert = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawString).invert;
-                                var textString = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawString).textString;
+                                var xLeft = (command as DrawingData.DrawingCommand_DrawString).xLeft;
+                                var yTop = (command as DrawingData.DrawingCommand_DrawString).yTop;
+                                var invert = (command as DrawingData.DrawingCommand_DrawString).invert;
+                                var textString = (command as DrawingData.DrawingCommand_DrawString).textString;
                                 DrawString(xLeft, yTop, textString, invert, g);
                             }
                             break;
-                        case VectorDisplayDrawingData.VectorDisplayDrawingCommandType.DrawStringRotated:
+                        case DrawingData.CommandType.DrawStringRotated:
                             {
-                                var xLeft = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawStringRotated).xLeft;
-                                var yTop = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawStringRotated).yTop;
-                                var angle = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawStringRotated).angle;
-                                var textString = (command as VectorDisplayDrawingData.VectorDisplayDrawingCommand_DrawStringRotated).textString;
+                                var xLeft = (command as DrawingData.DrawingCommand_DrawStringRotated).xLeft;
+                                var yTop = (command as DrawingData.DrawingCommand_DrawStringRotated).yTop;
+                                var angle = (command as DrawingData.DrawingCommand_DrawStringRotated).angle;
+                                var textString = (command as DrawingData.DrawingCommand_DrawStringRotated).textString;
                                 DrawStringRotated(xLeft, yTop, textString, angle, g);
                             }
                             break;
                     }
 
-                    switch ((VectorDisplayDrawingData.VectorDisplayType)_displayType)
+                    switch ((DrawingData.DisplayType)_displayType)
                     {
-                        case VectorDisplayDrawingData.VectorDisplayType.HUD:
+                        case DrawingData.DisplayType.HUD:
                             _hudDataSize +=command.commandDataSize;
                             break;
-                        case VectorDisplayDrawingData.VectorDisplayType.RWR:
+                        case DrawingData.DisplayType.RWR:
                             _rwrDataSize += command.commandDataSize;
                             break;
-                        case VectorDisplayDrawingData.VectorDisplayType.HMS:
+                        case DrawingData.DisplayType.HMS:
                             _hmsDataSize += command.commandDataSize;
+                            break;
+                        case DrawingData.DisplayType.LMFD:
+                            _lmfdDataSize += command.commandDataSize;
+                            break;
+                        case DrawingData.DisplayType.RMFD:
+                            _rmfdDataSize += command.commandDataSize;
                             break;
                     }
                 }
@@ -348,6 +399,8 @@ namespace BMSVectorsharedMemTestTool
             lblHUDDataSize.Text = $"Data Size: { (_hudDataSize / 1024.0).ToString("0.0") } KB";
             lblRWRDataSize.Text = $"Data Size: { (_rwrDataSize / 1024.0).ToString("0.0") } KB";
             lblHMSDataSize.Text = $"Data Size: { (_hmsDataSize / 1024.0).ToString("0.0") } KB";
+            lblLMFDDataSize.Text = $"Data Size: { (_lmfdDataSize / 1024.0).ToString("0.0") } KB";
+            lblRMFDDataSize.Text = $"Data Size: { (_rmfdDataSize / 1024.0).ToString("0.0") } KB";
 
         }
 

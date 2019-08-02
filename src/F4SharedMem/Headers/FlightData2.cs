@@ -119,7 +119,7 @@ namespace F4SharedMem.Headers
         public uint StringAreaTime; // last time the StringData/FalconSharedMemoryAreaString shared memory area has been changed - you only need to re-read the string shared mem if this changes
 
         // VERSION 16
-        uint VectorDisplayDrawingAreaSize; // the overall size of the VectorDisplayDrawingData/FalconSharedMemoryAreaVectorDisplayDrawing shared memory area
+        uint DrawingAreaSize; // the overall size of the DrawingData/FalconSharedMemoryAreaDrawing shared memory area
 
     }
 

@@ -56,6 +56,13 @@
   <PropertyGroup>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'RelWithDebugInfo|x86'">
+    <OutputPath>bin\x86\RelWithDebugInfo\</OutputPath>
+    <DebugType>full</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <Prefer32Bit>false</Prefer32Bit>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="Costura, Version=4.0.0.0, Culture=neutral, PublicKeyToken=9919ef960d84173d, processorArchitecture=MSIL">
       <HintPath>$(SolutionDir)\packages\Costura.Fody.4.0.0\lib\net40\Costura.dll</HintPath>
@@ -76,6 +83,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="MicroLibrary.cs" />
+    <Compile Include="MultimediaTimer.cs" />
     <Compile Include="GlobalSuppressions.cs" />
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Windows.Forms;
 using AnalogDevices;
 using log4net;
+using System.Diagnostics;
 
 namespace AnalogDevicesTestTool
 {
@@ -691,5 +692,93 @@ namespace AnalogDevicesTestTool
         {
             UpdateCalculatedOutputVoltage();
         }
+
+
+        double freq = 50;
+        int NB_OF_SAMPLES = 1000;
+        double amplitude = 0.25 * ushort.MaxValue;
+        ushort[] buffer = new ushort[1000];
+        long[] deltaArray = new long[1000];
+        int i = 0;
+        ChannelAddress dacChannel;
+        long timestamp;// = DateTimeOffset.Now.ToUnixTimeMilliseconds();   //TIMESTAMP IN EVERY 100's of NanoSeconds
+        Timer timer1 = new Timer();
+        private void sineButtonClick(object sender, EventArgs e)
+        {
+            timestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();   //TIMESTAMP IN EVERY 100's of NanoSeconds
+            dacChannel = DetermineSelectedDACChannelAddress(); //FIND THE CHANNEL TO OUTPUT
+            _selectedDevice.SetLDACPinLow(); //ENABLE CONTINIOUS OUTPUT MODE OF THE DEVICE
+            double angle = 0.0;
+            for (int n = 0; n < NB_OF_SAMPLES; n++)
+            {
+                buffer[n] = (ushort)(ushort.MaxValue / 2 + amplitude * Math.Sin(angle * (2 * Math.PI)));
+                angle += freq / NB_OF_SAMPLES;
+
+               // Console.WriteLine(buffer[n]);
+            }
+            InitializeTimer();
+        }
+
+
+        private MicroLibrary.MicroTimer _microTimer;
+        private void InitializeTimer()
+        {
+            DateTime newDate = DateTime.Now;
+            DateTime future = newDate.AddMinutes(2);
+            //using (var timer = new MultimediaTimer() { Interval = 1 , Resolution = 1})
+            //{
+            //
+            //    timer.Elapsed += (o, e) => executor();     
+            //    timer.Start();
+            //    while (true)
+            //    {
+            //        if (future < DateTime.Now)
+            //            break;
+            //    }
+            //   // timer.Stop();
+            //}
+             
+
+            _microTimer = new MicroLibrary.MicroTimer();
+            _microTimer.MicroTimerElapsed +=
+                new MicroLibrary.MicroTimer.MicroTimerElapsedEventHandler(executor);
+            // Set timer interval
+            _microTimer.Interval = 10;
+
+            // Ignore event if late by half the interval
+            _microTimer.IgnoreEventIfLateBy = _microTimer.Interval;// / 2;
+
+            // Start timer
+            _microTimer.Start();
+
+            
+        }
+
+
+        private void executor(object sender,
+                                  MicroLibrary.MicroTimerEventArgs timerEventArgs)
+        {
+            deltaArray[i] = DateTimeOffset.Now.ToUnixTimeMilliseconds() - timestamp;
+            timestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+            if (i == buffer.Length - 1)
+            {
+                i = 0;                                                            //RESET COUNTER AT THE END OF THE BUFFER
+               // float diff = deltaArray.Sum() / deltaArray.Length;
+                Console.WriteLine(deltaArray.Sum());
+               // Console.WriteLine(diff.ToString(".000000"));          //COMPUTE AVERAGE TIME FOR EXECUTION FOR ONE LOOP         
+            }
+            else
+            {
+                i = i + 1;                                                        //INCREMENT THE BUFFER
+            }
+
+            //Console.WriteLine(dataValueA.ToString());
+            _selectedDevice.SetDacChannelDataValueA(dacChannel,buffer[i]);           //PASSING DATA TO THE DEVICE
+        }
+
+
+
     }
+
+    
 }

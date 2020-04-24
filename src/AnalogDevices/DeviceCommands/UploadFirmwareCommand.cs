@@ -47,7 +47,7 @@ namespace AnalogDevices.DeviceCommands
                                 0,
                                 buffer,
                                 j);
-                            Thread.Sleep(1); // to avoid package loss
+                          //  Thread.Sleep(1); // to avoid package loss
                         }
                         j = 0;
                     }

@@ -4,6 +4,7 @@ namespace AnalogDevices.DeviceCommands
 {
     internal interface ISetDacChannelDataValueA
     {
+
         void SetDacChannelDataValueA(ChannelAddress channelAddress, ushort value);
     }
 
@@ -32,12 +33,18 @@ namespace AnalogDevices.DeviceCommands
 
         public void SetDacChannelDataValueA(ChannelAddress channelAddress, ushort value)
         {
+           //SGEORGE This if condition takes between 100-200ns
             if (channelAddress < ChannelAddress.Dac0 || channelAddress > ChannelAddress.Dac39)
             {
                 throw new ArgumentOutOfRangeException(nameof(channelAddress));
             }
-            using (_lockFactory.GetLock(LockType.CommandLock))
+            
+            
+            using (_lockFactory.GetLock(LockType.CommandLock)) //SGEORGE This lock takes about 800-900ns
             {
+
+                
+                ///////SGEORGE *****************10BLOCK***************** TAKES 1000ns
                 var val = _evalBoard.DeviceState.Precision == DacPrecision.SixteenBit
                     ? value
                     : (ushort) (value & (ushort) BasicMasks.HighFourteenBits);
@@ -50,11 +57,22 @@ namespace AnalogDevices.DeviceCommands
                     ~ControlRegisterBits
                         .InputRegisterSelect; //set control register bit F2 =0 to select register X1A for input
                 _writeControlRegisterCommand.WriteControlRegister(controlRegisterBits);
+                ///////SGEORGE *****************10BLOCK*****************
 
+                
+
+
+                /////SGEORGE SEND SPI command takes 905100 ns or 0.9051 ms (this is the heaviest call)
                 _sendSPICommand.SendSPI((uint) SerialInterfaceModeBits.WriteToDACInputDataRegisterX |
                                         (uint) (((byte) channelAddress & (byte) BasicMasks.SixBits) << 16) |
                                         val);
+
+                
+                
+                //SGEORGE Device State X1A register command takes 300-400 ns
                 _evalBoard.DeviceState.X1ARegisters[channelAddress.ToChannelNumber()] = val;
+
+          
             }
         }
     }

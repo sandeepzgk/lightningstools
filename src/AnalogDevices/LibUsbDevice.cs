@@ -23,12 +23,26 @@ namespace AnalogDevices
         public virtual void ControlTransfer(byte requestType, byte request, int value, int index, byte[] buffer = null,
             int? length = null)
         {
+            //SGEORGE takes about 100-200ns
             var libUsbSetupPacket = new UsbSetupPacket(requestType, request, (short) value, (short) index,
                 (short) (length ?? 0));
+
+   
+           
+
+
+            //SGEORGE takes about 850600 ns or 0.8506 ms
             _libUsbDevice.ControlTransfer(ref libUsbSetupPacket, buffer, libUsbSetupPacket.Length,
                 out int _);
+            
+            
+            //SGEORGE takes about 100-200ns
             ControlTransferSent?.Invoke(this,
                 new ControlTransferSentEventArgs(requestType, request, value, index, buffer, length));
+
+
+           
+
         }
 
         public event EventHandler<ControlTransferSentEventArgs> ControlTransferSent;

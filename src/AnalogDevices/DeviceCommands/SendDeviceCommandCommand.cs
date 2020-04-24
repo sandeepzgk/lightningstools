@@ -33,7 +33,8 @@
                 {
                     _initializeSPIPinsCommand.InitializeSPIPins();
                 }
-
+                ;
+                ///SGEORGE TAKES 891800 NS or 0.8918
                 _usbControlTransferCommand.UsbControlTransfer(
                     (byte) UsbRequestType.TypeVendor,
                     (byte) deviceCommand,
@@ -41,6 +42,7 @@
                     (ushort) ((setupData & 0xFF0000) / 0x10000),
                     null,
                     0);
+               
             }
         }
     }

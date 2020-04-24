@@ -705,6 +705,8 @@ namespace AnalogDevicesTestTool
         Timer timer1 = new Timer();
         private void sineButtonClick(object sender, EventArgs e)
         {
+            
+
             timestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();   //TIMESTAMP IN EVERY 100's of NanoSeconds
             dacChannel = DetermineSelectedDACChannelAddress(); //FIND THE CHANNEL TO OUTPUT
             _selectedDevice.SetLDACPinLow(); //ENABLE CONTINIOUS OUTPUT MODE OF THE DEVICE
@@ -717,6 +719,8 @@ namespace AnalogDevicesTestTool
                // Console.WriteLine(buffer[n]);
             }
             InitializeTimer();
+
+           
         }
 
 
@@ -743,7 +747,7 @@ namespace AnalogDevicesTestTool
             _microTimer.MicroTimerElapsed +=
                 new MicroLibrary.MicroTimer.MicroTimerElapsedEventHandler(executor);
             // Set timer interval
-            _microTimer.Interval = 10;
+            _microTimer.Interval = 500;
 
             // Ignore event if late by half the interval
             _microTimer.IgnoreEventIfLateBy = _microTimer.Interval;// / 2;
@@ -764,7 +768,7 @@ namespace AnalogDevicesTestTool
             {
                 i = 0;                                                            //RESET COUNTER AT THE END OF THE BUFFER
                // float diff = deltaArray.Sum() / deltaArray.Length;
-                Console.WriteLine(deltaArray.Sum());
+               // Console.WriteLine(deltaArray.Sum());
                // Console.WriteLine(diff.ToString(".000000"));          //COMPUTE AVERAGE TIME FOR EXECUTION FOR ONE LOOP         
             }
             else
@@ -772,8 +776,14 @@ namespace AnalogDevicesTestTool
                 i = i + 1;                                                        //INCREMENT THE BUFFER
             }
 
+
+            
+
+           
             //Console.WriteLine(dataValueA.ToString());
             _selectedDevice.SetDacChannelDataValueA(dacChannel,buffer[i]);           //PASSING DATA TO THE DEVICE
+
+           
         }
 
 

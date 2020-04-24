@@ -24,7 +24,11 @@
         {
             using (_lockFactory.GetLock(LockType.CommandLock))
             {
+               
+                //SGEORGE TAKES 871900 ns or 0.8719 ms
                 _evalBoard.UsbDevice.ControlTransfer(requestType, request, value, index, buffer, length);
+
+              
             }
         }
     }
